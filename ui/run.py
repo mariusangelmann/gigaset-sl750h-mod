@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Upload ui/build/menutest.bin to RAM 0x876000 and run it on the handset.
 
-Keeps the serial port open while the program runs in steps (red key or ~30 s
-without keys ends it) and prints how long it ran. Afterwards it presses OK and
-red through monitor/presskey.py so the stock UI redraws the whole screen.
+Keeps the serial port open while the program runs in steps (red key or ~45 s
+without keys ends it) and prints how long it ran. On exit the program itself
+makes the stock UI repaint the screen.
 
-Usage: CR16=<toolchain>/bin run.py [--no-restore] [bin]
+Usage: run.py [bin]
 """
 import os, re, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -45,10 +45,6 @@ def main(a):
     steps, secs, done = run(BASE, 600)
     print('%s after %.1f s, %d steps (%.0f/s)' % ('finished' if done else 'stopped',
           secs, steps, steps / secs))
-    if '--no-restore' not in a and done:
-        import presskey
-        for k in (0x19, 0x23):                # OK opens the menu, red returns: full redraw
-            presskey.press(k); time.sleep(0.5)
 
 if __name__ == '__main__':
     main(sys.argv[1:])

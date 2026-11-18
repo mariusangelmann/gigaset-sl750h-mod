@@ -6,6 +6,7 @@ _spi_cfg  = 0x1DCE12;
 _spi_w8   = 0x1DCE5E;
 _spi_w16  = 0x1DCE82;
 _kq_clear = 0x14D0B4;
+_post_key = 0x14CDFE;
 
 ENTRY(_start)
 SECTIONS

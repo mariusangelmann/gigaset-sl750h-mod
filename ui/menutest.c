@@ -6,7 +6,8 @@
  * monitor re-runs the call for as long as the PC keeps the serial port open.
  * Blocking the scheduler for ~5 s reset the phone, so never loop inside one
  * call. While the menu runs, the stock UI's key queue is locked and emptied.
- * Red key, or IDLE_TICKS without a key, ends it; start() then returns 0x0E0D.
+ * Red key, or IDLE_TICKS without a key, ends it: it presses OK and red for the
+ * stock UI so that it repaints the whole screen, then start() returns 0x0E0D.
  * All state is static: ram.ld puts .bss into the uploaded image, so every
  * upload starts fresh. */
 #include "fw.h"
@@ -41,8 +42,14 @@ static const char *const items[] = {
 };
 #define N_ITEMS (int)(sizeof items / sizeof items[0])
 
-enum { S_START, S_RUN, S_QUIT, S_DONE };
-static unsigned char state;
+enum { S_START, S_RUN, S_QUIT, S_REDRAW, S_DONE };
+enum { V_LIST, V_INFO };
+static unsigned char state, view;
+static unsigned short info_sig;       /* minute and battery last drawn on Info */
+static unsigned char last_min;        /* minute seen last step */
+static unsigned char repaint_in;      /* steps until a full repaint, 0 = none */
+#define KEY_RED  0x0801               /* KEY_RAW of the red key (row 0, column 3) */
+#define REPAINT_DELAY 25              /* ~0.35 s: let the stock UI finish drawing first */
 static unsigned short last, pend;     /* debounced and candidate key word */
 static int sel, top, idle, held;
 
@@ -135,13 +142,86 @@ static void move(int d)
     lcd_end();
 }
 
+/* ---- Info screen: clock, date, battery ---- */
+
+static char *put2(char *p, unsigned v)
+{
+    *p++ = '0' + v / 10 % 10;
+    *p++ = '0' + v % 10;
+    return p;
+}
+
+static void info_values(void)
+{
+    static const char wd[7][3] = { "Mo", "Di", "Mi", "Do", "Fr", "Sa", "So" };
+    static const unsigned char pct[] = { 20, 60, 100 };
+    unsigned char b = BATT_STATE, wday = CLOCK.wday;
+    unsigned year = CLOCK.year;
+    char t[24], *p;
+
+    p = put2(t, CLOCK.hour); *p++ = ':'; p = put2(p, CLOCK.min); *p = 0;
+    lcd_label(0, 70, LCD_W, 40, -1, t, &FONT_L, C_WHITE, C_BG);
+
+    p = t;
+    if (wday < 7) { *p++ = wd[wday][0]; *p++ = wd[wday][1]; *p++ = ','; *p++ = ' '; }
+    p = put2(p, CLOCK.day); *p++ = '.'; p = put2(p, CLOCK.month); *p++ = '.';
+    p = put2(p, year / 100); p = put2(p, year); *p = 0;
+    lcd_label(0, 110, LCD_W, 30, -1, t, &FONT_S, C_TEXT, C_BG);
+
+    p = t;
+    *p++ = 'A'; *p++ = 'k'; *p++ = 'k'; *p++ = 'u'; *p++ = ':'; *p++ = ' ';
+    if (b >= 3 && b <= 8) {
+        unsigned v = pct[(b - 3) % 3];
+        if (v == 100) *p++ = '1';
+        p = put2(p, v); *p++ = ' '; *p++ = '%';
+    } else if (b == 9) {
+        *p++ = '0'; *p++ = ' '; *p++ = '%';
+    } else {
+        *p++ = '?'; *p++ = ' '; *p++ = '('; p = put2(p, b); *p++ = ')';
+    }
+    if (b >= 6 && b <= 9) { *p++ = ','; *p++ = ' '; *p++ = 'l'; *p++ = '\xe4'; *p++ = 'd'; *p++ = 't'; }
+    *p = 0;
+    lcd_label(0, 170, LCD_W, 40, 16, t, &FONT_L, C_TEXT, C_BG);
+    info_sig = CLOCK.min | b << 8;
+}
+
+static void open_info(void)
+{
+    view = V_INFO;
+    lcd_begin();
+    lcd_label(0, 0, LCD_W, HEAD_H, -1, "Info", &FONT_L, C_WHITE, C_BAR);
+    lcd_fill(0, HEAD_H, LCD_W, FOOT_Y - HEAD_H, C_BG);
+    info_values();
+    footer("Rot = Zur\xfc" "ck", 0);
+    lcd_end();
+}
+
+static void open_list(void)
+{
+    view = V_LIST;
+    lcd_begin();
+    lcd_label(0, 0, LCD_W, HEAD_H, -1, "Men\xfc", &FONT_L, C_WHITE, C_BAR);
+    draw_list();
+    footer("Rot = Ende", 0);
+    lcd_end();
+}
+
 static void handle(char k, unsigned short raw)
 {
+    if (view == V_INFO) {
+        if (k == 'X' || k == 'L')
+            open_list();
+        return;
+    }
     if (k == 'U' || k == 'D') {
         move(k == 'U' ? -1 : 1);
     } else if (k >= '1' && k <= '9' && k - '1' < N_ITEMS) {
         move(k - '1' - sel);
     } else if (k == 'O' || k == 'R') {
+        if (sel == N_ITEMS - 1) {
+            open_info();
+            return;
+        }
         lcd_begin();
         footer(items[sel], raw);
         lcd_end();
@@ -158,27 +238,54 @@ __attribute__((section(".text.start"))) unsigned short start(void)
     if (state == S_DONE)
         return 0x0E0D;
     WDOG_KICK();
-    KEY_LOCK = 1;                    /* stock UI: "no key available" */
-    kq_clear();
+    if (state != S_REDRAW) {
+        KEY_LOCK = 1;                /* stock UI: "no key available" */
+        kq_clear();
+    }
     if (state == S_START) {
-        lcd_begin();
-        lcd_label(0, 0, LCD_W, HEAD_H, -1, "Men\xfc", &FONT_L, C_WHITE, C_BAR);
-        draw_list();
-        footer("Rot = Ende", 0);
-        lcd_end();
+        last_min = CLOCK.min;
+        open_list();
         state = S_RUN;
         return 0x600D;
     }
     tick();
     raw = KEY_RAW;
+    /* The stock UI still draws while we run: red always reaches it (post_key
+     * unlocks the key queue for red, 0x14CE14) and it jumps to its idle
+     * screen, and it redraws its clock every minute. Repaint after it. */
+    if (state == S_RUN) {
+        if (raw == KEY_RED || CLOCK.min != last_min)
+            repaint_in = REPAINT_DELAY;
+        last_min = CLOCK.min;
+        if (repaint_in && !--repaint_in) {
+            if (view == V_INFO)
+                open_info();
+            else
+                open_list();
+        }
+    }
     if (state == S_QUIT) {           /* wait until all keys are up, then hand back */
         idle = raw ? 0 : idle + 1;
         if (idle < 10)
             return 0x600D;
         kq_clear();
         KEY_LOCK = 0;
+        post_key(0x19);              /* OK: stock menu, full-screen repaint */
+        state = S_REDRAW;
+        idle = 0;
+        return 0x600D;
+    }
+    if (state == S_REDRAW) {         /* ~0.5 s later red: back to a fully drawn idle */
+        if (++idle < 30)
+            return 0x600D;
+        post_key(0x23);
         state = S_DONE;
         return 0x0E0D;
+    }
+    if (view == V_INFO && (CLOCK.min | BATT_STATE << 8) != info_sig) {
+        lcd_begin();
+        info_values();
+        lcd_end();
     }
     if (raw != pend) {               /* a key word must be seen on two steps */
         pend = raw;
@@ -200,7 +307,7 @@ __attribute__((section(".text.start"))) unsigned short start(void)
         held = idle = 0;
         last = raw;
         lcd_begin();
-        footer(raw ? "" : "Rot = Ende", raw);
+        footer(raw ? "" : view == V_INFO ? "Rot = Zur\xfc" "ck" : "Rot = Ende", raw);
         lcd_end();
         if (!raw)
             return 0x600D;
