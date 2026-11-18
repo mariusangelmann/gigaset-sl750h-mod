@@ -139,5 +139,6 @@ called with `=C878800` runs on the handset. `monitor/presskey.py <key>` (green,
 red, ok, 0-9, *, #, or a hex code) uploads a one-shot stub that posts one key
 through the firmware's `post_key` (0x14CDFE); a flag byte (0x878900) keeps the
 re-dispatching `=C` from pressing it more than once. `monitor/calltest.py`
-answers an incoming call and hangs up from the PC this way (see
+answers an incoming call and hangs up, and `monitor/dial.py <number>` dials
+from the PC, this way (see
 `re/CALLS.md`). Both need the CR16 toolchain (`CR16=<prefix>/bin`).

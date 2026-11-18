@@ -106,7 +106,14 @@ ringing ([0x8744C0]=1, [0x8744BE] bit 2 = 0), presses green, and presses red
 | 42.8 s | red posted |
 | 43.3 s | call ended ([0x8744C0] = 0) |
 
-The caller confirmed the call was answered and ended after ~7 s. So for v1 the
+The caller confirmed the call was answered and ended after ~7 s.
+
+**Dialling** (`monitor/dial.py`, variable stub reading its key code from RAM
+byte 0x878904): posted 0,1,5,1,1,7,6,6,7,2,2,8 one at a time (the key queue holds
+8 entries), then green. [0x8744C0] went to 1 at 44.1 s, red at 66.3 s, back to
+0 by 68.8 s. The owner answered on the mobile and talked; audio worked.
+
+So for v1 the
 custom UI can answer, hang up (and, by posting digits then green, dial) through
 key injection, while reading the state from 0x8744C0 / 0x8744BE. Calling the
 call module's functions directly is still open.

@@ -17,18 +17,20 @@ NAMES = {'green': 0x22, 'red': 0x23, 'ok': 0x19, '*': 0x4A, '#': 0x4B}
 NAMES.update({str(i): 0x40 + i for i in range(10)})
 B = os.path.join(os.environ.get('CR16', ''), 'cr16-elf-')
 
-def build(code, flag=FLAG):
+def build(code, flag=FLAG, key=None):
     with tempfile.TemporaryDirectory() as t:
         o, e, b = (os.path.join(t, x) for x in ('p.o', 'p.elf', 'p.bin'))
-        subprocess.run([B + 'as', '--defsym', 'CODE=%d' % code, '--defsym', 'FLAG=%d' % flag,
+        sym = ['--defsym', 'KEY=%d' % key] if code is None else ['--defsym', 'CODE=%d' % code]
+        subprocess.run([B + 'as', *sym, '--defsym', 'FLAG=%d' % flag,
                         os.path.join(HERE, 'stubs', 'presskey.s'), '-o', o], check=True)
         subprocess.run([B + 'ld', '-Ttext', '0x10000', '-e', 'press', o, '-o', e], check=True)
         subprocess.run([B + 'objcopy', '-O', 'binary', e, b], check=True)
         return open(b, 'rb').read()
 
-def upload(code, base=BASE, flag=FLAG):
-    """Upload a stub for `code` to `base` (one-shot flag at `flag`), disarmed."""
-    blob = build(code, flag)
+def upload(code, base=BASE, flag=FLAG, key=None):
+    """Upload a stub for `code` to `base` (one-shot flag at `flag`), disarmed.
+    code=None builds the variable stub that reads its key code from `key`."""
+    blob = build(code, flag, key)
     if len(blob) % 2: blob += b'\0'
     for i in range(0, len(blob), 2):
         w = blob[i] | blob[i + 1] << 8
