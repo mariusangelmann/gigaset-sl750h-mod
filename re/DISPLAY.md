@@ -11,8 +11,22 @@ CS released. It calls no task-0 path, so no deadlock.
 Result 2026-11-18: a rectangle X 40..199, Y 100..199 appeared where expected
 and stayed (the stock UI only redraws dirty areas).
 
-**Colours are inverted.** Sent 0x07E0 (green), saw magenta = 0xF81F = ~0x07E0.
-The panel runs with inversion, so the custom UI writes `~rgb565`.
+**Colours: plain RGB565, stored as native words.** `spi_w16` reads
+little-endian words from memory and sends each one high byte first. The first
+stubs stored colours high byte first (`.byte c>>8, c&0xff`), so every colour
+arrived byte-swapped. That first looked like inversion (0x07E0 green showed as
+magenta-ish 0xE007), but the text test proved it is a swap: white 0x0000-sent
+showed black and blue showed purple (0xE0FF). Both stubs now use `.word`.
+Verified 2026-11-18: white text on pure blue.
+
+## Text (verified on the handset)
+
+`monitor/drawtext.py "TEXT" [x y scale fg bg]` renders text with a 5x7 font on
+the PC into a 1-bit bitmap and runs `monitor/stubs/blit1bpp.s` from RAM: it
+expands each bitmap row (MSB = left pixel) into a pixel line at 0x879C00, sends
+it with `spi_w16` and kicks the watchdog per row. "Hallo!" at (24,215), scale 4,
+drew correctly on the first run (2026-11-18). The font only has the glyphs
+used so far; a full font comes with the custom UI.
 
 The first single run showed nothing visible to the owner; three repeated runs
 did. Cause not established (possibly screen dimmed or just missed).

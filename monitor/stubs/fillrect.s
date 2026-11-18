@@ -120,5 +120,5 @@ d_full_x: .byte 0, 0, 0, 0xef
 d_full_y: .byte 0, 0, 0x01, 0x3f
 .balign 2
 pix:      .rept 32
-          .byte (COLOR >> 8), (COLOR & 0xff)
+          .word COLOR
           .endr
