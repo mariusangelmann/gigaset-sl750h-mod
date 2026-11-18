@@ -1,0 +1,6 @@
+__pycache__/
+*.pyc
+*.upd
+snake/*.o
+snake/*.elf
+snake/*.bin
