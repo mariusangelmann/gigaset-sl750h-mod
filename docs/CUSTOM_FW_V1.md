@@ -45,7 +45,7 @@ mode lives outside the region we overwrite. No flash until that is verified.
 
 ## First steps
 
-1. Confirm the 4+6 recovery location (no flash).
+1. ~~Confirm the 4+6 recovery location~~ done: it is in R0, see docs/BOOT_RECOVERY.md.
 2. Find the modem-layer entry points in Ghidra: incoming call event, answer,
    hang up, dial, hold/transfer, ringer start/stop, vibration pin, battery
    level, signal/base status, time from base.
