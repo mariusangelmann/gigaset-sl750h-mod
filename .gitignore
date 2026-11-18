@@ -4,3 +4,4 @@ __pycache__/
 snake/*.o
 snake/*.elf
 snake/*.bin
+ui/build/

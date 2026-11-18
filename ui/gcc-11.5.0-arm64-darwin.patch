@@ -1,0 +1,14 @@
+--- a/gcc/config.host
++++ b/gcc/config.host
+@@ -91,6 +91,11 @@
+ 
+ # Common parts for widely ported systems.
+ case ${host} in
++  aarch64*-*-darwin*)
++    # Local patch: GCC 11 has no arm64 Darwin host hooks; use the defaults.
++    out_host_hook_obj=host-default.o
++    host_xmake_file="${host_xmake_file} x-darwin"
++    ;;
+   *-darwin*)
+     # Generic darwin host support.
+     out_host_hook_obj=host-darwin.o
