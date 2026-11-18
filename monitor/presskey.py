@@ -17,27 +17,35 @@ NAMES = {'green': 0x22, 'red': 0x23, 'ok': 0x19, '*': 0x4A, '#': 0x4B}
 NAMES.update({str(i): 0x40 + i for i in range(10)})
 B = os.path.join(os.environ.get('CR16', ''), 'cr16-elf-')
 
-def build(code):
+def build(code, flag=FLAG):
     with tempfile.TemporaryDirectory() as t:
         o, e, b = (os.path.join(t, x) for x in ('p.o', 'p.elf', 'p.bin'))
-        subprocess.run([B + 'as', '--defsym', 'CODE=%d' % code,
+        subprocess.run([B + 'as', '--defsym', 'CODE=%d' % code, '--defsym', 'FLAG=%d' % flag,
                         os.path.join(HERE, 'stubs', 'presskey.s'), '-o', o], check=True)
         subprocess.run([B + 'ld', '-Ttext', '0x10000', '-e', 'press', o, '-o', e], check=True)
         subprocess.run([B + 'objcopy', '-O', 'binary', e, b], check=True)
         return open(b, 'rb').read()
 
-def press(code):
-    blob = build(code)
+def upload(code, base=BASE, flag=FLAG):
+    """Upload a stub for `code` to `base` (one-shot flag at `flag`), disarmed."""
+    blob = build(code, flag)
     if len(blob) % 2: blob += b'\0'
     for i in range(0, len(blob), 2):
         w = blob[i] | blob[i + 1] << 8
-        _, ok, _ = mon.one('%X,%X' % (BASE + i, w))
-        if not ok: raise SystemExit('upload failed at %#x' % (BASE + i))
-    if mon.one('%X' % (BASE + 2))[0] != (blob[2] | blob[3] << 8):
+        _, ok, _ = mon.one('%X,%X' % (base + i, w))
+        if not ok: raise SystemExit('upload failed at %#x' % (base + i))
+    if mon.one('%X' % (base + 2))[0] != (blob[2] | blob[3] << 8):
         raise SystemExit('upload verify failed')
-    mon.one('B%X,0' % FLAG)                       # arm the one-shot flag
-    val, _, _ = mon.one('C%X' % BASE)
-    return val
+    mon.one('B%X,1' % flag)                       # disarmed until fire()
+
+def fire(base=BASE, flag=FLAG):
+    """Arm the flag and run an uploaded stub: posts its key exactly once."""
+    mon.one('B%X,0' % flag)
+    return mon.one('C%X' % base)[0]
+
+def press(code):
+    upload(code)
+    return fire()
 
 if __name__ == '__main__':
     k = sys.argv[1].lower()

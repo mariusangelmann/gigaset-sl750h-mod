@@ -91,6 +91,26 @@ incoming ringing vs answered = [0x8744BE] bit 2; outgoing shows "in call" with a
 timer. UI event codes seen in both directions: 0xCD = call setup, 0x89 = hang up,
 0x06 = speech path open (*hypothesis*).
 
+## Answer and hang up from code (verified on the handset)
+
+Key presses posted through the firmware's `post_key` (0x14CDFE, r2 = key code)
+drive the stock call logic like real keys. `monitor/calltest.py` uploads two
+one-shot stubs to RAM (green 0x22 at 0x878800, red 0x23 at 0x878840), waits for
+ringing ([0x8744C0]=1, [0x8744BE] bit 2 = 0), presses green, and presses red
+5 s after the call is active. Run on 2026-11-18 with a real incoming call:
+
+| t | Event |
+|---|---|
+| 35.7 s | ringing seen, green posted |
+| 36.2 s | call active ([0x8744BE] bit 2 set) |
+| 42.8 s | red posted |
+| 43.3 s | call ended ([0x8744C0] = 0) |
+
+The caller confirmed the call was answered and ended after ~7 s. So for v1 the
+custom UI can answer, hang up (and, by posting digits then green, dial) through
+key injection, while reading the state from 0x8744C0 / 0x8744BE. Calling the
+call module's functions directly is still open.
+
 ## Correction: 0x1DF622 is the Bluetooth headset (HFG) task
 
 The task at 0x1DF622 and its message ids belong to the Bluetooth hands-free

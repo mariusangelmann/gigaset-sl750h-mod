@@ -12,7 +12,9 @@
 # Key codes (verified live): green 0x22, red 0x23, OK 0x19, digits 0x40-0x49.
 
 .set POST_KEY_HALF, 0xa66ff         # post_key 0x14CDFE / 2
+.ifndef FLAG
 .set FLAG, 0x878900
+.endif
 
 .text
 .globl press

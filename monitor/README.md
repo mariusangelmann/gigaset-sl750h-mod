@@ -131,3 +131,13 @@ This is the base for the rest of the RE work: with live memory access we can
 confirm variables (such as the real main-menu cursor that the first Snake hook
 guessed wrong), watch what changes when a key is pressed, and test a value
 before baking it into a flash.
+
+## Run code from RAM and press keys (verified)
+
+Free RAM at 0x878800 is executable: a routine staged there with word writes and
+called with `=C878800` runs on the handset. `monitor/presskey.py <key>` (green,
+red, ok, 0-9, *, #, or a hex code) uploads a one-shot stub that posts one key
+through the firmware's `post_key` (0x14CDFE); a flag byte (0x878900) keeps the
+re-dispatching `=C` from pressing it more than once. `monitor/calltest.py`
+answers an incoming call and hangs up from the PC this way (see
+`re/CALLS.md`). Both need the CR16 toolchain (`CR16=<prefix>/bin`).
