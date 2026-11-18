@@ -42,10 +42,21 @@ Everything from 116.076.06, plus:
 
 | Offset | Bytes | Change |
 |---|---|---|
-| 0x1ce95a | 216 (was 0xFF) | AT monitor payload (read/write/byte-write/call) (`monitor/monitor.s`) |
+| 0x1ce95a | 254 (was 0xFF) | AT monitor payload (read/write/byte-write/call) (`monitor/monitor.s`) |
 | 0x183324 | `92090800` -> `800c1600` | `^GCTRACER` handler/2 -> monitor (CPU 0x2762ca) |
-| 0x3fd056 | 2 | CRC fixer re-solved; crcB(R1) stays 0xBE12 |
+| 0x3fd056 | 2 | CRC fixer re-solved (`0x009f`); crcB(R1) stays 0xBE12 |
 | 0x2a, 0xc05a, 0x18299d | 10 | Version -> 116.076.07 |
 
-Adds `AT^GCTRACER=<addr>` (read word) and `AT^GCTRACER=<addr>,<val>` (write
-word) over USB. Verified offline (20 sim cases, patch bytes, CRCs). Not yet flashed.
+Adds `AT^GCTRACER=<addr>` (read word), `=<addr>,<val>` (write word),
+`=B<addr>,<val>` (byte write), and `=C<addr>` (call) over USB.
+
+**Correction (2026-11-18):** the first .07 build flashed to the handset
+returned ERROR for every `=` command. Cause: it read the argument pointer from
+register `(r5,r4)` on a subagent's report, but that register does not point at
+the argument on the device. The payload now recomputes the pointer from the
+firmware globals `*(u32*)[0x874887] + (u16)[0x8748a7]` (as the AT dispatcher
+does), and on any parse failure emits three diagnostic `0x<WORD>` lines (arg
+pointer high, low, first word there) before ERROR, so a device failure is
+self-explaining. Payload grew 216 -> 254 bytes. Verified offline (30 sim cases,
+patch bytes, CRCs consistent). This corrected .07 supersedes the earlier .07
+build; not yet reflashed.

@@ -19,6 +19,12 @@ Addresses are CPU addresses (RAM 0x8xxxxx, I/O 0xFFxxxx, flash 0x0xxxxx).
 Malformed input returns ERROR and writes nothing. There is no range guard — it
 is a debug tool; a bad write to I/O can hang the phone (recover with 4+6).
 
+On any parse failure the reply is **self-diagnosing**: before `ERROR` it emits
+three `0x<WORD>` lines — the argument pointer (high word, then low word) and
+the first 16-bit word found there. So a malformed reply still shows where the
+monitor looked and what it saw, which is how we pin the real buffer layout on
+the handset without guessing.
+
 Examples:
 ```
 AT^GCTRACER=875678      read the keypad row bitmask
@@ -41,22 +47,36 @@ flashed. The routine runs in the AT task context — same rules as any handler
 
 | Piece | Where |
 |---|---|
-| Payload | file 0x1ce95a = CPU 0x2C1900 (free flash after Snake), 216 bytes |
+| Payload | file 0x1ce95a = CPU 0x2C1900 (free flash after Snake), 254 bytes |
 | Hook | file 0x183324 = ^GCTRACER handler/2 field in AT table record 29 (CPU 0x2762ca): `92 09 08 00` (-> 0x101324) → mon_entry/2 |
 
 `^GCTRACER` was a near-empty debug command. The AT dispatcher `jal`s the
-handler (table value x2) with r2 = command index, r3 = syntax byte,
-(r5,r4) = pointer to the command-line tail (`=...`), r6 = a flag word. The
-monitor parses hex from the tail, reads or writes the 16-bit word, and emits
+handler (table value x2) with r2 = command index, r3 = syntax byte, r6 = a flag
+word.
+
+**Finding the argument.** The first monitor trusted a subagent's report that
+the tail pointer arrives in `(r5,r4)`. On the handset that was wrong — every
+`=` command returned ERROR — so this version does **not** trust any passed
+register. `mon_entry` recomputes the argument pointer the way the firmware's
+own dispatcher does, from two globals:
+
+    arg = *(u32*)[0x874887] + (u16)[0x8748a7]
+
+`[0x874887]` points at the received command line and `[0x8748a7]` is the offset
+the line parser left just past `=`. `at_begin` (0x101FB4) only clears fields at
+`[0x874887]+0x10..+0x18`, so the pointer and offset survive it. The monitor
+then parses hex from that pointer, reads or writes the 16-bit word, and emits
 its reply with the firmware's own response/OK/ERROR helpers
 (`at_send_response_line` 0x10201a, `at_send_ok` 0x1022ee,
-`at_send_error` 0x1022f8).
+`at_send_error` 0x1022f8). (`mon_test`, a second entry point, takes the pointer
+directly in `(r5,r4)` so the CR16 sim — which cannot provide the device globals
+and mishandles absolute `loadd` — can drive the same body.)
 
 ## Build and test
 
 ```bash
 CR16=<prefix>/bin MON_BASE=0x2c1900 monitor/build.sh         # -> monitor/monitor.bin
-CR16=<prefix>/bin python3 monitor/sim/test_monitor.py        # 20 cases in cr16-elf-run
+CR16=<prefix>/bin python3 monitor/sim/test_monitor.py        # 30 cases in cr16-elf-run
 python3 make_monitor.py shark_gqs.upd fw_116.076.07.upd
 ```
 
