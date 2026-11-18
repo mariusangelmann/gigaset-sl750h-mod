@@ -16,6 +16,7 @@ Usage:
   mon.py B <hexaddr> <hexval>      write low byte
   mon.py C <hexaddr>              call code at addr (jal), prints routine r0
   mon.py raw '=<...>'              send a raw ^GCTRACER argument
+  mon.py watch <secs> <addr...>    print every value change (live events)
 
 Examples:
   mon.py 875678          # keypad row bitmask (0 = no key pressed)
@@ -87,9 +88,37 @@ def read_many(addrs, port=None):
     time.sleep(0.3)
     return out
 
+def watch(addrs, seconds, port=None):
+    """Poll addrs on one open port for `seconds`, print each value change with a
+    timestamp. Echo-synced like read_many. For capturing live events."""
+    s = serial.Serial(port or PORT, 115200, timeout=0.05)
+    last = {}; t0 = time.time()
+    try:
+        time.sleep(0.15); s.reset_input_buffer()
+        while time.time() - t0 < seconds:
+            for a in addrs:
+                cmd = 'AT^GCTRACER=%s' % a
+                s.reset_input_buffer(); s.write((cmd + '\r\n').encode())
+                buf = b''; t = time.time(); val = None
+                while time.time() - t < 0.4:
+                    c = s.read(128)
+                    if c: buf += c
+                    i = buf.find(cmd.encode())
+                    if i >= 0:
+                        m = re.search(rb'0x([0-9A-Fa-f]+)', buf[i + len(cmd):])
+                        if m: val = int(m.group(1), 16); break
+                if val is not None and last.get(a) != val:
+                    print('%7.2fs %s: %s -> 0x%X' % (time.time() - t0, a.upper(),
+                          '0x%X' % last[a] if a in last else '--', val), flush=True)
+                    last[a] = val
+    finally:
+        s.reset_input_buffer(); s.close()
+
 def main(a):
     if not a:
         print(__doc__); return 2
+    if a[0] == 'watch':                      # watch <seconds> <addr...>
+        watch(a[2:], float(a[1])); return 0
     if a[0] == 'raw':
         val, ok, txt = one(a[1])
         sys.stdout.write(txt)
