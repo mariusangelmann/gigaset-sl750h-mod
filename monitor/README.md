@@ -7,12 +7,40 @@ Snake image).
 
 ## Use
 
+Use the `monitor/mon.py` client, which handles the re-dispatch quirk (below):
+
+```
+mon.py <hexaddr>            read a 16-bit word     -> prints 0x<VALUE>
+mon.py <hexaddr> <hexval>   write a 16-bit word    -> prints OK
+mon.py B <hexaddr>,<hexval> write the low BYTE     -> prints OK
+mon.py C <hexaddr>          CALL code at addr      -> prints 0x<R0>
+```
+
+Example (verified on 116.076.09): `mon.py 2C1900` → `0x1C7`, `mon.py 875678` →
+`0x0` (keypad row bitmask, no key), `mon.py 9100 1234` then `mon.py 9100` →
+`0x1234`.
+
+The raw AT forms it builds are:
+
 ```
 AT^GCTRACER=<hexaddr>            read a 16-bit word    -> replies "0x<VALUE>"
 AT^GCTRACER=<hexaddr>,<hexval>   write a 16-bit word   -> OK
 AT^GCTRACER=B<hexaddr>,<hexval>  write the low BYTE    -> OK
 AT^GCTRACER=C<hexaddr>           CALL code at <hexaddr> -> replies "0x<R0>" 
 ```
+
+### Known quirk: the set syntax re-dispatches
+
+The firmware re-invokes the `=` (set) handler in a loop until it considers the
+input line consumed, which our handler does not signal, so a single
+`AT^GCTRACER=...` streams the same reply repeatedly until the serial port is
+closed. The value is always correct (the handler reads the same address every
+iteration), and closing the port halts it. `mon.py` opens a fresh port per
+command, reads only the first reply, and closes, so each read/write happens
+effectively once (a repeated write of the same value is idempotent). Avoid the
+raw `=C` call form outside `mon.py`, since an un-halted loop would run the
+callee thousands of times. A proper fix (have the handler mark the line
+consumed) can ride along with the next flash.
 
 Hex is case-insensitive and a leading `=` is required by the AT syntax.
 Addresses are CPU addresses (RAM 0x8xxxxx, I/O 0xFFxxxx, flash 0x0xxxxx).

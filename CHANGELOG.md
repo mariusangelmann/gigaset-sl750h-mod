@@ -59,8 +59,15 @@ ERROR`, with `=` = 0x10 and execute = 0x20. `^GCTRACER`'s stock high byte 0x21
 allows only execute, so every `=` form returned ERROR regardless. .09 hooks
 record 28 and sets its high byte to 0x31. The mask decode was confirmed live
 (`AT+CMEE=2`, high byte 0xff, returns OK). Verified offline (30 sim cases,
-patch bytes incl. rec29 left stock, CRCs). Flashed and confirmed on hardware:
-see below once tested.
+patch bytes incl. rec29 left stock, CRCs).
+
+**Flashed and confirmed on hardware.** `AT^GCTRACER=2C1900` → `0x1C7` (our own
+payload's first word), `=875678` → `0x0` (keypad row bitmask, no key),
+`=9100,1234` then `=9100` → `0x1234`, byte-write verified (`=B9100,FF` →
+`0x12FF`). One quirk: the firmware re-dispatches the `=` handler in a loop until
+the port is closed, so use `monitor/mon.py` (one command per port open), which
+reads the first reply and closes to halt the loop. The value is always correct;
+a clean "mark the line consumed" fix can ride the next flash.
 
 ## 116.076.07 — AT memory monitor (`make_monitor.py`)
 
