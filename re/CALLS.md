@@ -47,7 +47,28 @@ learns **call connected (0x3B) / call ended (0x3C)**.
 | 0x141624 | **call ended** notifier: posts 0x3C, clears bits 1, 2, 15 of 0x8744BE, then 0x1424D0, 0x142328 |
 | 0x8744BE | call status bit-field, set/cleared all over 0x1412E2–0x14302A (bits 1,3,4,6,8,9,11–15) |
 
-*Hypothesis:* bit 1 = ringing/setup, bit 2 = active. To be labelled live.
+### Live result 2: incoming call (watch 0x8744B0–0x8744D0)
+
+| t | Change | Step |
+|---|---|---|
+| 21.99 s | [0x8744CC] = 0xCD | just before ringing |
+| 22.73 s | **[0x8744C0] 0 → 1** | incoming call, ringing |
+| 25.57 s | [0x873629] → 0x3B, **[0x8744BE] 0 → 4** | answered, active |
+| 25.97 s | [0x8744CC] = 0x06 | right after answer |
+| 29.36 s | [0x8744CC] = 0x89 | right before hang-up |
+| 29.83 s | [0x873629] → 0x3C, [0x8744BE] → 0, [0x8744C0] → 0 | call ended |
+
+Verified call state (one incoming call):
+
+| State | [0x8744C0] | [0x8744BE] bit 2 |
+|---|---|---|
+| idle | 0 | 0 |
+| ringing | 1 | 0 |
+| active | 1 | 1 |
+
+Bit 1 of 0x8744BE did **not** change, so the earlier "bit 1 = ringing" guess is
+wrong. [0x8744CC] looks like the last UI event code (background 0x27/0x9D;
+*hypothesis*). [0x8744CA] bit 15 pulses briefly at ring start and at answer.
 
 *Earlier hypothesis:* the ids 0x30–0x49 are call events from the DECT stack (setup,
 alerting, connect, release, …). Next step is to map them live: watch
