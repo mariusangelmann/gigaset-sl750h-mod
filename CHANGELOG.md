@@ -36,6 +36,32 @@ Stock recovery image `SL750H_116.076.02_stock_recovery.upd`
 (sha256 `71193f9a…7e44c52`) and the .04/.05 builds are kept outside the repo.
 `.upd` files are not committed.
 
+## 116.076.09 — AT monitor on the correct command (`make_monitor.py`)
+
+Everything from 116.076.06, plus the monitor payload, now hooked onto the
+**right** AT command with the `=` syntax opened:
+
+| Offset | Bytes | Change |
+|---|---|---|
+| 0x1ce95a | 254 (was 0xFF) | AT monitor payload (`monitor/monitor.s`) |
+| 0x18331a | `77090800` -> `800c1600` | **^GCTRACER** (rec 28) handler/2 -> monitor (CPU 0x2762c0) |
+| 0x183323 | `21` -> `31` | ^GCTRACER flags high byte: add `0x10` so `=` (set) reaches the handler |
+| 0x3fd056 | 2 | CRC fixer re-solved (`0x0090`); crcB(R1) stays 0xBE12 |
+| 0x2a, 0xc05a, 0x18299d | 10 | Version -> 116.076.09 |
+
+**Why .07/.08 did nothing on the handset.** The AT table record is
+`{u32 handler/2, u32 name_ptr, u16 flags}` (stride 10, base CPU 0x2761a8). The
+.07/.08 builds used a wrong field order and repointed record **29**
+(`^GCUSBETHERN`), not `^GCTRACER` (record 28) — so `AT^GCTRACER` always ran its
+original handler and our code never executed. Separately, the dispatcher gates
+syntax before calling any handler: `(flags_high_byte & received_syntax) == 0 ->
+ERROR`, with `=` = 0x10 and execute = 0x20. `^GCTRACER`'s stock high byte 0x21
+allows only execute, so every `=` form returned ERROR regardless. .09 hooks
+record 28 and sets its high byte to 0x31. The mask decode was confirmed live
+(`AT+CMEE=2`, high byte 0xff, returns OK). Verified offline (30 sim cases,
+patch bytes incl. rec29 left stock, CRCs). Flashed and confirmed on hardware:
+see below once tested.
+
 ## 116.076.07 — AT memory monitor (`make_monitor.py`)
 
 Everything from 116.076.06, plus:

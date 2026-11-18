@@ -48,7 +48,20 @@ flashed. The routine runs in the AT task context — same rules as any handler
 | Piece | Where |
 |---|---|
 | Payload | file 0x1ce95a = CPU 0x2C1900 (free flash after Snake), 254 bytes |
-| Hook | file 0x183324 = ^GCTRACER handler/2 field in AT table record 29 (CPU 0x2762ca): `92 09 08 00` (-> 0x101324) → mon_entry/2 |
+| Hook | file 0x18331a = ^GCTRACER handler/2 field in AT table record 28 (CPU 0x2762c0): `77 09 08 00` (-> 0x1012ee) → mon_entry/2 |
+| Syntax | file 0x183323 = ^GCTRACER flags high byte `0x21` → `0x31`, so `=` reaches the handler |
+
+**Which record, and the syntax gate (the .07/.08 trap).** The AT table is at
+CPU 0x2761a8 (file 0x183202), 10-byte records `{u32 handler/2, u32 name_ptr,
+u16 flags}`. The .07/.08 builds assumed `{handler, flags, name}` and repointed
+record **29** (`^GCUSBETHERN`) instead of `^GCTRACER` (record **28**), so
+`AT^GCTRACER` always ran its stock handler and the monitor never executed.
+Separately, the dispatcher gates syntax before calling any handler
+(`0x1024a4`): `(flags_high_byte & received_syntax) == 0` → ERROR, where `=`
+(set) = `0x10` and the no-arg execute form = `0x20`. `^GCTRACER`'s stock high
+byte `0x21` allows only execute, so every `=` form returned ERROR before our
+code ran. We hook record 28 and set its high byte to `0x31` (add `0x10`). Mask
+decode confirmed live with `AT+CMEE=2` (high byte `0xff`, returns OK).
 
 `^GCTRACER` was a near-empty debug command. The AT dispatcher `jal`s the
 handler (table value x2) with r2 = command index, r3 = syntax byte, r6 = a flag
