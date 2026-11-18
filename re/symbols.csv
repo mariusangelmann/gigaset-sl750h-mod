@@ -1,0 +1,55 @@
+address,kind,name,status,note
+# address = real CPU address (file offset + 0xF2FA6). kind: func|data|ram|io.
+# status: verified = checked against disassembly/bytes (or on device); hypothesis = plausible, unproven.
+0x1da3e6,func,gpio_set,verified,"r2=logical pin, r3=level; pin table 0x2b58de"
+0x1dce12,func,spi_cfg,verified,"r2=0, r3=clock 1|2, r4=0 8-bit / 1 16-bit"
+0x1dce5e,func,spi_tx8_sync,verified,"(r3,r2)=ptr, (r5,r4)=count"
+0x1dce82,func,spi_tx16_sync,verified,"(r3,r2)=ptr, (r5,r4)=count of words"
+0x1dcd8c,func,post_task,verified,"sets pending bit 0x874c11[task]; drains only when idle"
+0x1dcfb2,func,task_drain,verified,"runs ready tasks via table 0x2b5c31"
+0x20e5e6,func,lcd_xfer_post_and_wait,verified,"posts task 0 and spins on 0x875212 - deadlocks inside a handler"
+0x20e688,func,lcd_task0_exec,verified,"task-0 body: spi_cfg + sync send"
+0x20eb6a,func,lcd_write,verified,"r2=cmd, (r4,r3)=data, (r6,r5)=len, stack byte mode"
+0x20e7f0,func,lcd_flush,verified,"RASET+RAMWR of a row band; arg struct 0x874f1d"
+0x20ec38,func,lcd_play_init_table,verified,"opcodes fa/f8/f9/fb/ff"
+0x20e8ee,func,lcd_render_screen,hypothesis,"dispatches per-variant vtable 0x2b79dc"
+0x1d492e,func,kbd_isr_body,verified,"acks 0xff49b6, calls kbd_scan"
+0x20f932,func,kbd_scan,verified,"scan/debounce state machine"
+0x1d4952,func,kbd_read_matrix,verified,"writes row/col bytes to 0x875678/9"
+0x16fdb2,func,menu_state_get,verified,"returns [0x87546c]"
+0x16fc1e,func,menu_window_handler_16fc1e,verified,"r7=event; OK (0x1a) -> 0x16fd82. NOT proven to receive main-menu OK"
+0x16e950,func,main_menu_visibility_loop,verified,"calls all 8 main-menu predicates"
+0x16e8c6,func,menu_any_subitem_visible,verified,"r2=main index"
+0x16f0be,func,main_menu_pred_netzdienste,verified,"visibility predicate of main item 3 (r2=3)"
+0x181b80,func,devmenu_select_dispatch,verified,"jal table 0x2af691 + idx*8"
+0x2ae8fa,data,main_menu_table,verified,"8 x 14 bytes; +0 predicate/2, +4 subitem count, +5 u16, +9 ram ptr, +13 idx"
+0x2b7c8c,data,key_raw_code_table,verified,"row*12+col*3+k"
+0x2b58de,data,gpio_pin_table,verified,"10 bytes per logical pin"
+0x2b7a5c,data,st7789_init_casil,verified,
+0x2b7ad5,data,st7789_init_yes2,verified,
+0x2b7b4d,data,st7789_init_yes3,verified,
+0x2b7bc5,data,st7789_init_yes,verified,
+0x2c11b4,data,interrupt_vector_table,verified,"intbase; entries are trampolines ending in retx"
+0x2c1244,data,free_flash_payload_area,verified,"erased 0xFF up to ~0x2fd000 in stock"
+0x875678,ram,kbd_row_bits,verified,"active-high, ISR-refreshed"
+0x875679,ram,kbd_col_bits,verified,"active-high, ISR-refreshed"
+0x87546c,ram,menu_state_ptr,verified,"byte +1 is an ITERATOR in the item loop at 0x16e74a, not the cursor"
+0x875434,ram,ui_state_ptr,verified,"+4 next state fn/2, +8 flags, +0xa event code"
+0x801837,ram,current_task_id,verified,"0xff = idle"
+0x8753a0,ram,lcd_row_offset,verified,
+0x874630,ram,panel_variant_flags,verified,"bit 4 selects SPI clock"
+0x874dee,ram,key_event_queue,verified,"8 x {type,value}"
+0xff4940,io,SPI_CTRL,verified,"bit 11 TX busy"
+0xff4942,io,SPI_TX,verified,
+0xff4948,io,SPI_CTRL1,verified,"bit 3 transfer busy"
+0xff4c00,io,WATCHDOG,verified,"write 0xfe/0xff to reload"
+0xff49b6,io,KBD_INT_STATUS,verified,
+0x2761b6,data,at_command_table,verified,"10-byte records {u32 name_ptr, u32 handler/2, u16 flags}; entry ^GCTRACER etc"
+0x100c86,func,at_handler_cgm_group,verified,"handles +CMEE/+CGMI/+CGMM/+CGMR/+CGSN/+CBC/+CSQ by subtype r2"
+0x10201a,func,at_send_response_line,verified,"(r3,r2)=string ptr; sends one response line"
+0x1022ee,func,at_send_ok,verified,"calls at_send_result(r2=2)"
+0x1022f8,func,at_send_error,verified,"calls at_send_result(r2=3)"
+0x1024dc,func,at_dispatch_jal_site,verified,"jal (r11,r10) = table handler*2; r2=subtype, (r5,r4)=arg, r6=flag"
+0x1024ee,func,at_cmdline_ptr,verified,"returns [0x874887]+[0x8748a7] = current parse pointer"
+0x101fb4,func,at_resp_buf_reset,verified,"resets response buffer at 0x874887"
+0x874887,ram,at_parser_state,verified,"AT parser/response struct; +0x29 is a control word"
