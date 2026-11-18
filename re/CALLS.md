@@ -70,6 +70,27 @@ Bit 1 of 0x8744BE did **not** change, so the earlier "bit 1 = ringing" guess is
 wrong. [0x8744CC] looks like the last UI event code (background 0x27/0x9D;
 *hypothesis*). [0x8744CA] bit 15 pulses briefly at ring start and at answer.
 
+### Live result 3: outgoing call (SIP line, reached voicemail)
+
+| t | Change | Step |
+|---|---|---|
+| 10–18 s | [0x8744CC] = 0x86 repeatedly (with 0x1C/0xA7/0x15) | dialling digits (*hypothesis*) |
+| 18.55 s | [0x8744CC] = **0xCD** | call setup (same code as before the incoming ring) |
+| 18.72 s | **[0x8744C0] 0 → 1** | call started |
+| 19.69 s | [0x8744CC] = 0x06 | (also seen right after answering an incoming call) |
+| 45.69 s | [0x8744CC] = **0x89** | hang up (same code as for the incoming call) |
+| 46.04 s | **[0x8744C0] 1 → 0** | call ended |
+
+[0x8744BE] bit 2 was **never** set and no 0x3B message came, although the far
+end (voicemail) picked up. On this SIP base the DECT call counts as set up when
+dialling; ringback and the voicemail greeting are in-band audio, so the handset
+gets no separate "remote answered" signal.
+
+**For the custom UI:** "call in progress" = [0x8744C0] != 0 (both directions);
+incoming ringing vs answered = [0x8744BE] bit 2; outgoing shows "in call" with a
+timer. UI event codes seen in both directions: 0xCD = call setup, 0x89 = hang up,
+0x06 = speech path open (*hypothesis*).
+
 *Earlier hypothesis:* the ids 0x30–0x49 are call events from the DECT stack (setup,
 alerting, connect, release, …). Next step is to map them live: watch
 0x873628/0x87362A with `monitor/mon.py watch` while making and receiving a
