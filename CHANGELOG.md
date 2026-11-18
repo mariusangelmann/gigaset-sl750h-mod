@@ -35,3 +35,17 @@ Version bump and USB string.
 Stock recovery image `SL750H_116.076.02_stock_recovery.upd`
 (sha256 `71193f9a…7e44c52`) and the .04/.05 builds are kept outside the repo.
 `.upd` files are not committed.
+
+## 116.076.07 — AT memory monitor (`make_monitor.py`)
+
+Everything from 116.076.06, plus:
+
+| Offset | Bytes | Change |
+|---|---|---|
+| 0x1ce95a | 152 (was 0xFF) | AT monitor payload (`monitor/monitor.s`) |
+| 0x183324 | `92090800` -> `800c1600` | `^GCTRACER` handler/2 -> monitor (CPU 0x2762ca) |
+| 0x3fd056 | 2 | CRC fixer re-solved; crcB(R1) stays 0xBE12 |
+| 0x2a, 0xc05a, 0x18299d | 10 | Version -> 116.076.07 |
+
+Adds `AT^GCTRACER=<addr>` (read word) and `AT^GCTRACER=<addr>,<val>` (write
+word) over USB. Verified offline (20 sim cases, patch bytes, CRCs). Not yet flashed.
