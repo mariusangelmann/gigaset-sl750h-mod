@@ -88,6 +88,33 @@ def read_many(addrs, port=None):
     time.sleep(0.3)
     return out
 
+def write_blob(base, blob, port=None):
+    """Write bytes to RAM as 16-bit words on one open port (echo-synced, like
+    read_many), then read every word back to verify. base must be even."""
+    if len(blob) % 2: blob += b'\0'
+    words = [(base + i, blob[i] | blob[i + 1] << 8) for i in range(0, len(blob), 2)]
+    s = serial.Serial(port or PORT, 115200, timeout=0.05)
+    try:
+        time.sleep(0.15); s.reset_input_buffer()
+        for a, w in words:
+            cmd = 'AT^GCTRACER=%X,%X' % (a, w)
+            s.reset_input_buffer(); s.write((cmd + '\r\n').encode())
+            buf = b''; t = time.time()
+            while time.time() - t < 0.6:
+                c = s.read(128)
+                if c: buf += c
+                i = buf.find(cmd.encode())
+                if i >= 0 and b'OK' in buf[i:]: break
+            else:
+                raise IOError('no OK for write at %#x' % a)
+    finally:
+        s.reset_input_buffer(); s.close()
+    time.sleep(0.3)
+    got = read_many(['%X' % a for a, _ in words], port)
+    bad = [(a, w, got['%X' % a]) for a, w in words if got['%X' % a] != w]
+    if bad:
+        raise IOError('verify failed at %d words, first %r' % (len(bad), bad[0]))
+
 def watch(addrs, seconds, port=None):
     """Poll addrs on one open port for `seconds`, print each value change with a
     timestamp. Echo-synced like read_many. For capturing live events."""
