@@ -57,6 +57,36 @@ def one(arg):
     val = int(m.group(1), 16) if m else None
     return val, first_ok, txt
 
+def read_many(addrs, port=None):
+    """Fast batch read: keep one port open and echo-sync each reply so the
+    firmware's re-dispatch flood from the previous command can't bleed into the
+    next. ~0.01s per address. Returns {addr_upper: value_or_None}. Use this (not
+    repeated one()) when reading many addresses or capturing fast-changing state
+    such as live menu navigation; closing the port at the end halts the loop."""
+    s = serial.Serial(port or PORT, 115200, timeout=0.05)
+    out = {}
+    try:
+        time.sleep(0.15); s.reset_input_buffer()
+        for a in addrs:
+            cmd = 'AT^GCTRACER=%s' % a
+            s.reset_input_buffer()
+            s.write((cmd + '\r\n').encode())
+            buf = b''; t = time.time(); val = None
+            while time.time() - t < 0.6:
+                c = s.read(128)
+                if c: buf += c
+                i = buf.find(cmd.encode())       # sync on this command's echo
+                if i >= 0:
+                    after = buf[i + len(cmd):]
+                    m = re.search(rb'0x([0-9A-Fa-f]+)', after)
+                    if m: val = int(m.group(1), 16); break
+                    if b'ERROR' in after: break
+            out[a.upper()] = val
+    finally:
+        s.reset_input_buffer(); s.close()
+    time.sleep(0.3)
+    return out
+
 def main(a):
     if not a:
         print(__doc__); return 2
