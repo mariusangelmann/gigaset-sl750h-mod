@@ -91,6 +91,41 @@ incoming ringing vs answered = [0x8744BE] bit 2; outgoing shows "in call" with a
 timer. UI event codes seen in both directions: 0xCD = call setup, 0x89 = hang up,
 0x06 = speech path open (*hypothesis*).
 
+## Correction: 0x1DF622 is the Bluetooth headset (HFG) task
+
+The task at 0x1DF622 and its message ids belong to the Bluetooth hands-free
+gateway, not to the DECT call system. The call module *notifies* it
+(0x1415E4 posts 0x3B "call active", 0x141624 posts 0x3C "no call active", i.e.
+`SBT_TI_CALL_ACTIVE_REQ` / `SBT_TI_NO_CALL_ACTIVE_REQ`). The state of
+[0x8744C0]/[0x8744BE] above is still the call module's own state.
+
+### HFG state machine (verified layout)
+
+State records, 0xAA bytes each, name pointer at +0xA4, handlers stored as CPU/2:
+IDLE 0x2B9B0E, ICALL_SETUP 0x2B9BB8, OCALL_SETUP 0x2B9C62, CALL_ACTIVE 0x2B9D0C
+(0x2B9A64 is a service state). Per-event entry functions set the event name at
+sm+0x14 and `jal` the handler at a fixed slot: ANSWER_IND +0x0C (0x214E9C),
+DIAL_IND +0x18 (0x214F32), REJECT_IND +0x30.
+
+| State | ANSWER | DIAL | REJECT |
+|---|---|---|---|
+| IDLE | ignore (0x213CA2) | 0x2148E4 | 0x213D12 |
+| ICALL_SETUP | 0x214AB4 | ignore | 0x214AEE |
+| OCALL_SETUP | ignore | ignore | 0x214BCA |
+| CALL_ACTIVE | ignore | ignore | 0x214D52 |
+
+These handlers call into 0x1E0xxx, which is the CSR HFG profile layer (7
+connection records at 0x86F962, stride 0x61; AT replies to the headset). It
+does not lead to the DECT call commands directly, so this route was stopped.
+
+## Call screen (stock UI), 0x1424F0 `call_screen_proc`
+
+UI window proc of the call screen, event in [ui_state_ptr]+0xA. Call events
+0xCD–0xDD and others; event 0x88 calls the connected notifier 0x1415E4; event
+0x06 calls 0x141BCE, which reads the caller number (information elements 0x28
+and 0xCA, strings `PAGING`/`EXTERN`) into **0x87449A** and a 0x4C-byte record at
+[0x87524C] (caller ID).
+
 *Earlier hypothesis:* the ids 0x30–0x49 are call events from the DECT stack (setup,
 alerting, connect, release, …). Next step is to map them live: watch
 0x873628/0x87362A with `monitor/mon.py watch` while making and receiving a
