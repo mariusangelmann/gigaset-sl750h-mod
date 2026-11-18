@@ -150,3 +150,10 @@ st_store:
     storb r3, 0(r1,r0)
     TRASH
     jump (ra)
+
+# A real, linker-placed routine for the =C call test (sim executes .text, not RAM).
+.section .callee,"ax"
+.globl callee
+callee:
+    movw $0x2BCD, r0
+    jump (ra)

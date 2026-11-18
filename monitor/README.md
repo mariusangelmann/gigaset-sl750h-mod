@@ -8,8 +8,10 @@ Snake image).
 ## Use
 
 ```
-AT^GCTRACER=<hexaddr>            read a 16-bit word   -> replies "0x<VALUE>"
-AT^GCTRACER=<hexaddr>,<hexval>   write a 16-bit word  -> OK, no reply line
+AT^GCTRACER=<hexaddr>            read a 16-bit word    -> replies "0x<VALUE>"
+AT^GCTRACER=<hexaddr>,<hexval>   write a 16-bit word   -> OK
+AT^GCTRACER=B<hexaddr>,<hexval>  write the low BYTE    -> OK
+AT^GCTRACER=C<hexaddr>           CALL code at <hexaddr> -> replies "0x<R0>" 
 ```
 
 Hex is case-insensitive and a leading `=` is required by the AT syntax.
@@ -24,11 +26,22 @@ AT^GCTRACER=87546C      read the menu-state pointer low word
 AT^GCTRACER=FF4C00,00FF kick the watchdog
 ```
 
+## Run code without flashing
+
+`=B` (byte write) and `=C` (call) let us run new code over USB with no flash:
+stage a routine into RAM byte by byte, end it with `jump (ra)` (bytes `EE 0A`),
+then call it. `=C<addr>` does `jal`, so it calls the address as-is (the monitor
+halves it internally, matching the CPU's `jal (pair)` = jump to pair*2), and
+replies with the routine's `r0`. This is how later experiments (a new Snake
+hook, a test probe) run instantly; only changes that must survive a reboot get
+flashed. The routine runs in the AT task context — same rules as any handler
+(don't call lcd_write/lcd_flush, kick the watchdog in long loops).
+
 ## How it works
 
 | Piece | Where |
 |---|---|
-| Payload | file 0x1ce95a = CPU 0x2C1900 (free flash after Snake), 152 bytes |
+| Payload | file 0x1ce95a = CPU 0x2C1900 (free flash after Snake), 216 bytes |
 | Hook | file 0x183324 = ^GCTRACER handler/2 field in AT table record 29 (CPU 0x2762ca): `92 09 08 00` (-> 0x101324) → mon_entry/2 |
 
 `^GCTRACER` was a near-empty debug command. The AT dispatcher `jal`s the

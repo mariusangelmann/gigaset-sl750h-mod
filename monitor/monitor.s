@@ -30,10 +30,16 @@
 #   at_send_ok = 0x1022EE, at_send_error = 0x1022F8
 #
 # Syntax (hex digits case-insensitive, leading '=' optional; debug tool, no
-# address-range guard; the address is parsed as 32 bits, the value as 16):
-#   =<addr>          read the 16-bit word at <addr>, reply "0x<VAL>", then OK
-#   =<addr>,<val>    write 16-bit <val> to <addr>, then OK (no reply line)
-#   anything with no hex digits for <addr> or <val>  -> ERROR, memory untouched
+# address-range guard; the address is parsed as 32 bits, the value as 16).
+# An optional single letter right after '=' selects the operation:
+#   =<addr>           read the 16-bit word at <addr>, reply "0x<VAL>", then OK
+#   =<addr>,<val>     write 16-bit <val> to <addr>, then OK (no reply line)
+#   =B<addr>,<val>    write the low BYTE of <val> to <addr>, then OK
+#   =C<addr>          CALL the code at <addr> as bal (ra),<addr>; on return,
+#                     reply "0x<R0>" (the routine's r0) then OK
+# Staging code to run from RAM: poke it in with =B/=<addr>,<val> writes (e.g.
+# to RAM 0x8xxxxx), end it with a `jump (ra)` (bytes EE 0A), then =C<addr>.
+# Anything with no hex digits for <addr> or <val>  -> ERROR, memory untouched.
 # Parsing of each number stops at the first non-hex char; text after the
 # address (other than ',') or after the value is ignored. Word accesses at odd
 # addresses are passed straight to the CPU.
@@ -45,23 +51,36 @@
 
 .globl mon_entry
 mon_entry:
-    push $4, r7, RA             # saves r7..r10 and RA
+    push $5, r7, RA             # saves r7..r11 and RA
     movd (r5,r4), (r8,r7)       # tail pointer survives at_begin
     bal (ra), at_begin
     movd (r8,r7), (r5,r4)       # (r5,r4) = parse cursor
     loadb 0(r5,r4), r0
     cmpb $0x3d, r0              # skip an optional '='
+    bne mon_op
+    addd $1, (r5,r4)
+mon_op:
+    movb $0, r11               # r11 = op: 0 word, 'B' byte, 'C' call
+    loadb 0(r5,r4), r0
+    andb $0xdf, r0             # fold to upper case
+    cmpb $0x42, r0             # 'B'
+    beq mon_op_set
+    cmpb $0x43, r0             # 'C'
     bne mon_addr
+mon_op_set:
+    movb r0, r11
     addd $1, (r5,r4)
 mon_addr:
     bal (ra), parse_hex         # (r1,r0) = address, r3 = digit count
     cmpw $0, r3
     beq mon_err
     movd (r1,r0), (r10,r9)      # address
+    cmpb $0x43, r11            # 'C' -> call
+    beq mon_call
     loadb 0(r5,r4), r0
     cmpb $0x2c, r0              # ',' -> write form
     beq mon_write
-    # ---- read ----
+    # ---- read word ----
     loadw 0(r10,r9), r0
     addd $-4, (sp)
     storw r0, 0(sp)             # vararg 1 = value
@@ -74,15 +93,29 @@ mon_write:
     bal (ra), parse_hex         # r0 = value (low 16 bits)
     cmpw $0, r3
     beq mon_err
+    cmpb $0x42, r11            # 'B' -> byte write
+    beq mon_wbyte
     storw r0, 0(r10,r9)
+    br mon_ok
+mon_wbyte:
+    storb r0, 0(r10,r9)
+    br mon_ok
+mon_call:
+    lshd $-1, (r10,r9)         # jal jumps to (pair)*2, so pass addr/2
+    jal (r10,r9)               # call the staged routine; it returns here
+    addd $-4, (sp)
+    storw r0, 0(sp)            # reply the routine's r0
+    movd $fmt_hex, (r3,r2)
+    bal (ra), at_send_response_line
+    addd $4, (sp)
 mon_ok:
     bal (ra), at_send_ok
     movw $1, r0
-    popret $4, r7, RA
+    popret $5, r7, RA
 mon_err:
     bal (ra), at_send_error
     movw $1, r0
-    popret $4, r7, RA
+    popret $5, r7, RA
 
 # parse_hex: hex digits at (r5,r4) -> (r1,r0) (32-bit), r3 = digit count;
 # (r5,r4) is left on the first non-hex byte. Clobbers r2.

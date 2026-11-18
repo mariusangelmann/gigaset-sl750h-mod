@@ -42,7 +42,7 @@ Everything from 116.076.06, plus:
 
 | Offset | Bytes | Change |
 |---|---|---|
-| 0x1ce95a | 152 (was 0xFF) | AT monitor payload (`monitor/monitor.s`) |
+| 0x1ce95a | 216 (was 0xFF) | AT monitor payload (read/write/byte-write/call) (`monitor/monitor.s`) |
 | 0x183324 | `92090800` -> `800c1600` | `^GCTRACER` handler/2 -> monitor (CPU 0x2762ca) |
 | 0x3fd056 | 2 | CRC fixer re-solved; crcB(R1) stays 0xBE12 |
 | 0x2a, 0xc05a, 0x18299d | 10 | Version -> 116.076.07 |

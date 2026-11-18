@@ -39,7 +39,21 @@ CASES = [
     ('', ERR, None),
     ('=,1', ERR, None),
     ('=9100', OK, 0xCAFE),
+    # --- byte write ---
+    ('=B9100,FF', OK, None),            # low byte only
+    ('=9100', OK, 0xCAFF),              # high byte of CAFE preserved
+    # --- stage a routine (movw $0xABCD,r0; jump (ra)) at 0x9200 and call it ---
+    ('=B9200,B0', OK, None),
+    ('=B9201,5A', OK, None),
+    ('=B9202,CD', OK, None),
+    ('=B9203,AB', OK, None),
+    ('=B9204,EE', OK, None),
+    ('=B9205,0A', OK, None),
+    ('=C9200', OK, 0xABCD),  # NOTE sim exec             # call -> reply routine's r0
+    ('=9100', OK, 0xCAFF),              # memory still sane after the call
 ]
+
+CALLEE_ADDR = 0x11000  # harness 'callee' pinned here via --defsym
 
 def sh(*a):
     subprocess.run(a, check=True)
@@ -50,7 +64,8 @@ def main():
         with open(cp, 'w') as f:
             f.write('.section .cases,"a"\n')
             for t, *_ in CASES:
-                f.write('.byte %s\n' % ','.join(str(b) for b in t.encode() + b'\0'))
+                tb=('=C%X'%CALLEE_ADDR if t=='CALLEE' else t).encode()
+                f.write('.byte %s\n' % ','.join(str(b) for b in tb + b'\0'))
             f.write('.byte 0xff\n')
         objs = []
         for src, o in ((os.path.join(HERE, '..', 'monitor.s'), 'm.o'),
@@ -59,6 +74,7 @@ def main():
             objs.append(os.path.join(tmp, o))
         elf = os.path.join(tmp, 't.elf')
         sh(B + 'ld', '-e', '_start', '-Ttext', '0x10000', '--section-start', '.cases=0x50000',
+           '--section-start', '.callee=0x%X' % CALLEE_ADDR,
            *objs, '-o', elf)
         syms = subprocess.run([B + 'nm', elf], capture_output=True, text=True, check=True).stdout
         fmt = int(next(l.split()[0] for l in syms.splitlines() if l.endswith(' fmt_hex')), 16)
