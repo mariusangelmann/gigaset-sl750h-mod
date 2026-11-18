@@ -60,13 +60,14 @@ emergency mode → `python3 sl750h_tool.py flash shark_gqs.upd`. Details in
 ├── sl750h_tool.py            main CLI: info / files / upload / download / ringtone / patch / flash
 ├── make_mod.py               recipe: version bump + USB string mod (proven, flashed)
 ├── make_hardened.py          recipe: security hardening (URL neutering + version bump + CRC fixer)
-├── snake/                    CR16C payload (Snake game) WIP: snake.s, inject.py, build-toolchain.sh
+├── make_snake.py             recipe: hardened + Snake on main menu "Netzdienste" (116.076.06)
+├── snake/                    CR16C Snake payload: snake.s, build.sh, sim/ tests, build-toolchain.sh
 ├── QuickSync4Linux/          vendored third-party OBEX client (MIT), used by files/upload/download
 ├── docs/
 │   ├── PROTOCOL.md           USB flash protocol (AT^SRSR/^SSWU/^SGBD/^SSWR/^SERR), reversed + live-captured
 │   ├── IMAGE_FORMAT.md       .upd image layout, region/entry CRCs, the CRC-fixer fixed-point rule
 │   ├── SECURITY_HARDENING.md vendor-EOL research + attack-surface table + what was mitigated
-│   └── RE_NOTES.md           memory map, QSPI/GPIO registers, AT command surface, gas traps, recovery
+│   └── RE_NOTES.md           address mapping, display/keypad/menu/scheduler internals, gas traps, recovery
 ├── examples/                 ready-to-run example scripts (custom strings, hardening, ringtones)
 ├── tests/                    offline tests (CRC vectors, image parse/fix round-trip)
 └── SECURITY.md               scope & responsible use
@@ -81,6 +82,8 @@ them locally from the stock download URL above.
 - [Image format & CRC model](docs/IMAGE_FORMAT.md)
 - [Security hardening (why & what)](docs/SECURITY_HARDENING.md)
 - [Reverse-engineering notes](docs/RE_NOTES.md)
+- [Snake mod](snake/README.md)
+- [Changelog of firmware patches](CHANGELOG.md)
 - [Scope & responsible use](SECURITY.md)
 
 ## Tool reference
@@ -107,4 +110,5 @@ Note for OBEX commands (`files`/`upload`/`ringtone`): the phone only accepts
 
 ```bash
 python3 tests/test_image.py        # CRC vectors + image round-trip (uses stock image if present)
+CR16=<toolchain>/bin python3 snake/sim/test_snake.py   # Snake game logic in the CR16 simulator
 ```
