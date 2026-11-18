@@ -25,7 +25,31 @@ Nearly all calls from those handlers that leave the bridge land in one block,
 | 0x87362A | body of the last message |
 | 0x1DFDD2, 0x1DFEE0, 0x1DFFBE, 0x1E0034, 0x1E00A2, … | per-message handlers that branch on [0x873629] (ids `'0'`,`'1'`,`'2'`,`'9'`,`':'`,`';'`,`'<'`,0xA8,0xAB) |
 
-*Hypothesis:* the ids 0x30–0x49 are call events from the DECT stack (setup,
+### Live result (test call, 2026-11-18)
+
+Incoming call, rang ~5 s, answered, ~12 s active, hung up on the handset; then
+an outgoing call to an unreachable number:
+
+| t | [0x873629] | Step |
+|---|---|---|
+| 18.7 s | 0x3C → **0x3B** | answered (no event while ringing) |
+| 31.4 s | 0x3B → **0x3C** | hung up |
+
+The outgoing call produced no event (it never connected). So this task only
+learns **call connected (0x3B) / call ended (0x3C)**.
+
+## Call-control module (0x141200–0x143100)
+
+| Addr | Role |
+|---|---|
+| 0x1DF5BA | post a message to the call-event task (`0x1CBE52`, `0x1CBEFA`, `0x1CBE60`), id in r2 |
+| 0x1415E4 | **call connected** notifier: posts 0x3B, `[0x8744BE] = [0x8744BE] & ~2 \| 4` |
+| 0x141624 | **call ended** notifier: posts 0x3C, clears bits 1, 2, 15 of 0x8744BE, then 0x1424D0, 0x142328 |
+| 0x8744BE | call status bit-field, set/cleared all over 0x1412E2–0x14302A (bits 1,3,4,6,8,9,11–15) |
+
+*Hypothesis:* bit 1 = ringing/setup, bit 2 = active. To be labelled live.
+
+*Earlier hypothesis:* the ids 0x30–0x49 are call events from the DECT stack (setup,
 alerting, connect, release, …). Next step is to map them live: watch
 0x873628/0x87362A with `monitor/mon.py watch` while making and receiving a
 test call.
