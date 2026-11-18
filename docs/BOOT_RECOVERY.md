@@ -36,12 +36,27 @@ Disassembly: `cr16-elf-objdump -D -b binary -m cr16 --adjust-vma=0xf2ffe r0.bin`
   outside it, which look like data misdecoded as code. Nothing indicates R0
   depends on R1.
 
+## Verified on the handset (2026-11-18, firmware 116.076.09)
+
+Battery out, hold 4+6, battery in: the screen stays dark. Plugged into USB the
+phone then:
+
+- enumerates as **"Gigaset Generic CDCACM Device"**. That UTF-16 string exists
+  in R0 (file 0x9E10); our R1 renamed its own copy to "…MODDED…", so this
+  descriptor comes from the boot loader;
+- answers `AT` → OK and `AT+CGMR` → 116.076.09 (the version of the R1 in flash);
+- returns ERROR for `AT^GCTRACER` and `AT^GCTRACER=2C1900`, which the running
+  R1 (with the monitor) answers with OK / 0x1C7.
+
+So 4+6 starts R0's own USB update client without running R1. A broken custom
+R1 can therefore still be reflashed, as long as R0 is untouched.
+
 ## Not proven yet
 
-- That the combo checked at 0xF44AE is exactly 4+6 (the column/row polarity
-  was not fully decoded). The owner's recovery procedure says 4+6.
 - R0's behaviour when R1's CRC is invalid (it may also fall into update mode
   on its own).
+- A complete reflash from this mode (the protocol is the same one
+  `sl750h_tool.py flash` speaks, but it was not run from 4+6 here).
 
 ## Rule for the custom firmware
 
